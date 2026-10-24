@@ -44,7 +44,7 @@ then laid out in one place.
 | | |
 |---|---|
 | **Android** | 5.0 (API 21) or later. Built for and tested on Android 5–7 era devices. |
-| **Tested on** | Amazon Fire 7 (5th gen, 2015) running LineageOS, rooted with Magisk. |
+| **Tested on** | Amazon Fire 7 (5th gen, 2015) (ford) running LineageOS 14.1 (Android 7.1,) rooted with Magisk. |
 | **Should work on** | Most Android tablets and phones. Landscape is the default; portrait is supported. |
 | **Memory** | Designed for 1 GB of RAM and less. |
 | **Home Assistant** | Any recent version with the ESPHome integration. |

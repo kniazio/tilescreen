@@ -1,0 +1,57 @@
+Tile Screen
+Copyright (c) 2026 Ken and contributors.
+
+Tile Screen is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General
+Public License as published by the Free Software Foundation, version 3 of the License or (at your option) any later
+version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for the full text.
+
+Tile Screen is an independent project. It is not made, endorsed or supported by the authors of the projects below.
+
+Work this project is based on
+-----------------------------
+
+Tessera / ESP Screens (https://github.com/MaxGramser/homeassistant_espscreen)
+  Copyright (c) 2026 Max Gramser and contributors. GNU Affero General Public License v3.0.
+  Tile Screen speaks Tessera's screen protocol and redraws Tessera's firmware views in Java: the tiles and cards, the
+  clock tile and the screensaver's clock faces, the settings page and its rules, the history card, the light's colour
+  and effects pages, the media library, the energy card, the meter and the calendar card. Their layouts, numbers,
+  colours and words follow Tessera's firmware (components/smart_display) and add-on (screen_manager/app).
+
+libcountertop (https://github.com/ygelfand/libcountertop)
+  Copyright (c) 2026 Yuri Gelfand. GNU Affero General Public License v3.0.
+  core/Tessera.java is a port of its pkg/tessera receiver; the tap routing and the backlight's perceptual curve
+  follow it as well.
+
+EchoLocal (https://github.com/ygelfand/echolocal)
+  Copyright (c) 2026 Yuri Gelfand. MIT License:
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+    documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so, subject to the following conditions: The above
+    copyright notice and this permission notice shall be included in all copies or substantial portions of the
+    Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+    LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+    SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+    CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+    IN THE SOFTWARE.
+
+  The design of an Android device that presents itself as a Tessera screen comes from it.
+
+go-esphome-device (https://github.com/ygelfand/go-esphome-device)
+  Copyright (c) 2026 ygelfand. MIT License (the same text as above).
+  The shape of the ESPHome device server in core/EspDevice.java follows it.
+
+Protocols and algorithms
+------------------------
+
+The ESPHome native API and its Noise encryption (Noise_NNpsk0_25519_ChaChaPoly_SHA256) are implemented from their
+public descriptions. X25519 follows TweetNaCl (public domain) and RFC 7748; ChaCha20-Poly1305 follows RFC 8439, with
+Poly1305 after poly1305-donna (public domain).
+
+Fonts and icons
+---------------
+
+assets/mdi.ttf: Material Design Icons by Pictogrammers (https://pictogrammers.com), Pictogrammers Free License; the
+font is distributed under the Apache License 2.0. See assets/MDI-LICENSE.

@@ -71,8 +71,15 @@ final class Style {
         return s.equals("on") || s.equals("open") || s.equals("home") || s.equals("playing");
     }
 
+    /**
+     * Tessera's Tile::available, turned round: "unavailable", or "unknown" for all but the entities whose "unknown" still
+     * takes a tap - a blind without feedback (Home Assistant's own cover keys stay on), a scene and a button.
+     */
     static boolean unavailable(Tessera.Tile t) {
-        return "unavailable".equals(t.state) || "unknown".equals(t.state) && !t.domain().equals("sensor");
+        if ("unavailable".equals(t.state)) return true;
+        if (!"unknown".equals(t.state)) return false;
+        String d = t.domain();
+        return !(d.equals("sensor") || d.equals("cover") || d.equals("scene") || d.equals("button") || d.equals("input_button"));
     }
 
     static int accent(Tessera.Tile t) {

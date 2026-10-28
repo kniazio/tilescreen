@@ -10,7 +10,10 @@ public class DesktopMain {
         s.node = "fire-test"; s.friendly = "Fire Test"; s.mac = "AA:BB:CC:DD:EE:01";
         Tessera.Shape shape = new Tessera.Shape() {
             public int width() { return 1024; } public int height() { return 552; }
-            public int columns() { return 4; } public int rows() { return 3; }
+            int c = 4, r = 3;
+            public int columns() { return c; } public int rows() { return r; }
+            public int[] kept(boolean upright) { return upright ? new int[]{3, 4} : new int[]{c, r}; }
+            public void choose(boolean upright, int cc, int rr) { System.out.println("[app] grid " + cc + "x" + rr + (upright ? " standing" : " lying")); if (!upright) { c = cc; r = rr; } }
         };
         Tessera.Store store = new Tessera.Store() {
             public String load() { try { return new String(Files.readAllBytes(keep), "UTF-8"); } catch (IOException e) { return null; } }

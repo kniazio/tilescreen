@@ -85,6 +85,12 @@ public final class MainActivity extends Activity implements Screen.Ui, ScreenSet
         setContentView(root);
         applyOrientation();
         keepScreenOn();
+        app.onTurn = new Runnable() {
+            public void run() {
+                applyOrientation();
+                view.changed();
+            }
+        };
     }
 
     @Override
@@ -270,9 +276,11 @@ public final class MainActivity extends Activity implements Screen.Ui, ScreenSet
         String o = app.orientation();
         boolean turned = app.screen().screenSettings.rotation() == 180;
         int want;
-        if (o.equals("auto")) want = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR;
-        else if (o.equals("portrait")) want = turned ? ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
-        else want = turned ? ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+        // Landscape and portrait follow the tablet either way up while Android's Auto-rotate is on (USER_*), and stay
+        // as they are while it is off; Tessera's Rotation 180° turns them over for good.
+        if (o.equals("auto")) want = ActivityInfo.SCREEN_ORIENTATION_FULL_USER;
+        else if (o.equals("portrait")) want = turned ? ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT : ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT;
+        else want = turned ? ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE;
         if (getRequestedOrientation() != want) setRequestedOrientation(want);
     }
 

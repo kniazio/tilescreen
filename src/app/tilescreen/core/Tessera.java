@@ -242,7 +242,14 @@ public final class Tessera {
         int height();
         int columns();
         int rows();
+        /** The grid kept for one way of the glass: {columns, rows}. */
+        int[] kept(boolean upright);
+        /** Tessera gave a grid for one way of the glass (and that way to hang): keep it, and turn the screen if need be. */
+        void choose(boolean upright, int columns, int rows);
     }
+
+    /** The grids the app takes either way, as a board's GRID_RANGES. */
+    static final int GRID_LEAST = 1, GRID_MOST = 8;
 
     public interface Store {
         String load();
@@ -432,11 +439,33 @@ public final class Tessera {
                 || keepalive == null || keepalive < 5 || keepalive > 3600) {
             return false;
         }
+        // The way the glass is to hang and the grid the layout is counted on (firmware 0.53.0+, the hello's "grids"): none
+        // means the way and the grid it has. A grid that way can't take is refused whole, before anything changes.
+        boolean uprightNow = shape.height() > shape.width();
+        Boolean upright = Json.bool(m, "upright");
+        boolean way = upright == null ? uprightNow : upright;
+        int[] target = shape.kept(way);
+        if (m.get("grid") != null) {
+            List<Object> cells = Json.arr(m.get("grid"));
+            Integer gc = cells != null && cells.size() == 2 && cells.get(0) instanceof Double ? ((Double) cells.get(0)).intValue() : null;
+            Integer gr = cells != null && cells.size() == 2 && cells.get(1) instanceof Double ? ((Double) cells.get(1)).intValue() : null;
+            if (gc == null || gr == null || gc < GRID_LEAST || gc > GRID_MOST || gr < GRID_LEAST || gr > GRID_MOST) {
+                status[0] = "Error: grid";
+                return false;
+            }
+            target = new int[]{gc, gr};
+        }
+        int[] had = shape.kept(way);
+        boolean regridded = way != uprightNow || target[0] != had[0] || target[1] != had[1];
+        if (regridded) {
+            log.log("tessera: grid " + target[0] + "x" + target[1] + (way ? " standing" : " lying") + (way != uprightNow ? ", turning the screen" : ""));
+            shape.choose(way, target[0], target[1]);
+        }
         Session candidate = session.copy();
         int r = candidate.begin(revision, pages, tiles);
         if (r == Session.REFUSED) return false;
         session = candidate;
-        if (r == Session.UNCHANGED) {
+        if (r == Session.UNCHANGED && !regridded) {
             status[0] = "Synced";
             return true;
         }
@@ -663,9 +692,29 @@ public final class Tessera {
         a.put("tile_keys", 1.0);
         a.put("tile_repeats", 1.0);
         a.put("free_pages", 1.0);
-        a.put("max_tiles", (double) Math.min(MAX_TILES, MAX_PAGES * columns * rows));
+        // The board's, not the grid's (firmware 0.53.0+): Tessera may give it another grid and counts that one itself.
+        a.put("max_tiles", (double) MAX_TILES);
         a.put("max_pages", (double) MAX_PAGES);
         a.put("max_bar_items", (double) BAR_ITEMS);
+        // The grids this screen takes each way its glass hangs, the one it keeps for each, and which way it hangs now
+        // (firmware 0.53.0+): the editor's Grid card then chooses this screen's grid, and the begin of a layout brings it.
+        Map<String, Object> grids = new LinkedHashMap<String, Object>();
+        grids.put("upright", shape.height() > shape.width());
+        for (int i = 0; i < 2; i++) {
+            int[] kept = shape.kept(i == 1);
+            Map<String, Object> way = new LinkedHashMap<String, Object>();
+            way.put("columns", (double) kept[0]);
+            way.put("rows", (double) kept[1]);
+            List<Object> least = new ArrayList<Object>(), most = new ArrayList<Object>();
+            least.add((double) GRID_LEAST);
+            least.add((double) GRID_LEAST);
+            most.add((double) GRID_MOST);
+            most.add((double) GRID_MOST);
+            way.put("min", least);
+            way.put("max", most);
+            grids.put(i == 1 ? "portrait" : "landscape", way);
+        }
+        a.put("grids", grids);
         a.put("features", features);
         a.put("tile_sizes", sizes);
         a.put("request", keyText(session.hello));

@@ -725,7 +725,8 @@ public final class TileView extends View {
         String e = t.entity;
 
         Hit hit = new Hit(new RectF(r));
-        hit.tap = tapFor(index, t, false);
+        final boolean iconMode = app.screen().screenSettings.iconToggles() && opensCard(t);
+        hit.tap = tapFor(index, t, iconMode);
         hit.hold = tapFor(index, t, true);
         hits.add(hit);
 
@@ -846,6 +847,15 @@ public final class TileView extends View {
         glyphs.setTextSize(ic * 0.56f);
         c.drawText(Icons.forTile(getContext(), t), icx, icy + ic * 0.2f, glyphs);
         glyphs.setAlpha(255);
+        // Icon toggles: the circle does what a tap did (on and off, play and pause), the rest of the tile opens the card.
+        final Runnable quick = iconMode && !dead ? quickAction(index, t) : null;
+        if (quick != null) {
+            float reach = Math.max(ic, 12 * u);
+            Hit q = new Hit(new RectF(icx - reach / 2, icy - reach / 2, icx + reach / 2, icy + reach / 2));
+            q.tap = quick;
+            q.hold = tapFor(index, t, true);
+            hits.add(q);
+        }
         if (t.domain().equals("climate") && plan != null && !dead) {
             // A thermostat's circle turns it on and off; off is not on its mode bar.
             Hit power = new Hit(new RectF(icx - ic / 2, icy - ic / 2, icx + ic / 2, icy + ic / 2));
@@ -897,6 +907,10 @@ public final class TileView extends View {
             else state = mode + (target != null && !"off".equals(t.state) ? " · " + Style.number(target) + Style.degree(t) : "");
             if (dead) state = Style.words(t.state);
         }
+        // What the second line was set to in Tessera (firmware 0.2.90+) wins over every line the screen works out
+        // itself, but not over an unavailable entity: that still says so (chosen_subtitle).
+        String chosen = chosenLine(t);
+        if (chosen != null && !dead) state = chosen;
         float nameX, nameY, stateY, width;
         if (side) {
             nameX = r.left + pad + ic + pad * 0.6f;
@@ -938,6 +952,32 @@ public final class TileView extends View {
                 }
             }
         }
+    }
+
+    /**
+     * The tile's second line as chosen in Tessera (`o.sub`): null for the line the screen works out itself ("auto"),
+     * "" for none, words of your own, or a value of the entity, which the add-on sends finished (`x.s`) or as the
+     * moment it names (`x.sm`, seconds), said here as a time ago.
+     */
+    static String chosenLine(Tessera.Tile t) {
+        String choice = t.sub;
+        if (choice == null || choice.isEmpty() || choice.equals("auto")) return null;
+        if (choice.equals("none")) return "";
+        if (choice.startsWith("text:")) return choice.substring(5);
+        if (!choice.startsWith("attr:")) return null;
+        Double at = Json.dbl(t.extra, "sm");
+        if (at != null && at > 0) return ago((long) (at * 1000));
+        String line = Json.str(t.extra, "s");
+        return line == null ? "" : line;
+    }
+
+    private static String ago(long at) {
+        long s = Math.max(0, (System.currentTimeMillis() - at) / 1000);
+        if (s < 60) return "Just now";
+        if (s < 3600) return s / 60 + " min ago";
+        if (s < 86400) return s / 3600 + " h ago";
+        long days = s / 86400;
+        return days == 1 ? "Yesterday" : days + " days ago";
     }
 
     private final ClockTile clocks = new ClockTile();
@@ -1158,22 +1198,58 @@ public final class TileView extends View {
             final Slider s = new Slider();
             s.track = band;
             s.min = 0; s.max = 100; s.step = 1;
-            if (kind.equals("volume")) {
-                // The volume, with mute at its end.
-                float bw = band.height() * 1.25f;
-                RectF mute = new RectF(band.right - bw, band.top, band.right, band.bottom);
-                s.track = new RectF(band.left, band.top, mute.left - band.height() * 0.3f, band.bottom);
+            if (kind.equals("volume") || d.equals("media_player") && kind.equals("slider")) {
+                // Tessera's volume row (firmware 0.39.0): volume down, the slider and volume up. The keys step the player
+                // (volume_down and volume_up, for players with either VOLUME_STEP or VOLUME_SET); the slider only where it
+                // takes a level (VOLUME_SET). Volume down held mutes; a tap on either key while muted takes the mute off.
+                final int f = t.number("supported_features") == null ? 0 : t.number("supported_features").intValue();
                 final boolean muted = Boolean.TRUE.equals(t.attributes.get("is_volume_muted"));
-                drawRound(c, mute, raised);
-                glyphs.setColor(ink);
+                final boolean canMute = f == 0 || (f & 8) != 0;
+                boolean stepping = f == 0 || (f & (4 | 1024)) != 0 || (muted && canMute);
+                boolean setting = f == 0 || (f & 4) != 0;
+                float bw = band.height() * 1.25f, g = band.height() * 0.3f;
+                RectF minus = new RectF(band.left, band.top, band.left + bw, band.bottom);
+                RectF plus = new RectF(band.right - bw, band.top, band.right, band.bottom);
+                s.track = new RectF(minus.right + g, band.top, plus.left - g, band.bottom);
+                drawRound(c, minus, stepping ? raised : withAlpha(raised, 90));
+                drawRound(c, plus, stepping ? raised : withAlpha(raised, 90));
+                glyphs.setColor(stepping ? ink : withAlpha(ink, 90));
                 glyphs.setTextSize(band.height() * 0.55f);
-                c.drawText(Icons.sure(getContext(), muted ? "volume-off" : "volume-high"), mute.centerX(), mute.centerY() + band.height() * 0.2f, glyphs);
-                Hit mh = new Hit(mute);
-                mh.tap = new Runnable() {
-                    public void run() { call("media_player.volume_mute", t, "is_volume_muted", muted ? "false" : "true"); }
-                };
-                hits.add(mh);
+                c.drawText(Icons.sure(getContext(), muted ? "volume-off" : "minus"), minus.centerX(), minus.centerY() + band.height() * 0.2f, glyphs);
+                c.drawText(Icons.sure(getContext(), "plus"), plus.centerX(), plus.centerY() + band.height() * 0.2f, glyphs);
+                if (stepping) {
+                    Hit down = new Hit(minus);
+                    down.tap = new Runnable() {
+                        public void run() {
+                            if (muted && canMute) call("media_player.volume_mute", t, "is_volume_muted", "false");
+                            else call("media_player.volume_down", t);
+                        }
+                    };
+                    if (canMute && !muted) down.hold = new Runnable() {
+                        public void run() { call("media_player.volume_mute", t, "is_volume_muted", "true"); }
+                    };
+                    hits.add(down);
+                    Hit up = new Hit(plus);
+                    up.tap = new Runnable() {
+                        public void run() {
+                            if (muted && canMute) call("media_player.volume_mute", t, "is_volume_muted", "false");
+                            else call("media_player.volume_up", t);
+                        }
+                    };
+                    hits.add(up);
+                }
                 s.value = orElse(t.number("volume_level"), 0) * 100;
+                if (!setting) {
+                    // A player that only steps: the slider shows the level it reports, faded, and takes no finger.
+                    fill.setColor(withAlpha(raised, 90));
+                    c.drawRoundRect(s.track, s.track.height() / 2, s.track.height() / 2, fill);
+                    if (t.number("volume_level") != null && s.value > 0) {
+                        RectF lvl = new RectF(s.track.left, s.track.top, s.track.left + Math.max(s.track.height(), (float) (s.track.width() * s.value / 100)), s.track.bottom);
+                        fill.setColor(withAlpha(accent, 90));
+                        c.drawRoundRect(lvl, lvl.height() / 2, lvl.height() / 2, fill);
+                    }
+                    return;
+                }
                 s.set = new Setter() {
                     public void set(double v) { call("media_player.volume_set", t, "volume_level", Style.number(Math.round(v) / 100.0)); }
                 };
@@ -1566,6 +1642,21 @@ public final class TileView extends View {
             hits.add(lib);
         }
         RectF body = new RectF(r.left + pad, r.top + pad * 2 + ic, r.right - pad, r.bottom - pad);
+        if (t.domain().equals("remote") && Json.arr(t.extra.get("keys")) != null) {
+            // A remote whose integration names its keys: the keypad, the power key in the top bar (render_remote_detail).
+            final boolean powered = "on".equals(t.state);
+            float kx = r.right - pad - 13 * u;
+            glyphs.setColor(powered ? Style.accent(t) : Style.DIM);
+            glyphs.setTextSize(6 * u);
+            c.drawText(Icons.glyph("F0425"), kx, r.top + pad + 5 * u, glyphs);
+            Hit power = new Hit(new RectF(kx - 5 * u, r.top, kx + 5 * u, r.top + pad + 10 * u));
+            power.tap = new Runnable() {
+                public void run() { call(powered ? "remote.turn_off" : "remote.turn_on", t); }
+            };
+            hits.add(power);
+            drawRemoteKeypad(c, t, body);
+            return;
+        }
         if (t.domain().equals("vacuum")) {
             drawVacuum(c, t, body);
             // The top bar's keys: suction and water at the edge beside the close key, Locate beside it.
@@ -1592,6 +1683,120 @@ public final class TileView extends View {
             return;
         }
         drawCardBody(c, t, body, fs, accent);
+    }
+
+    // ----- a remote's keypad (render_remote_keypad, firmware 0.22.0) -----
+
+    private static final int RK_UP = 0, RK_DOWN = 1, RK_LEFT = 2, RK_RIGHT = 3, RK_OK = 4, RK_BACK = 5, RK_HOME = 6,
+            RK_PLAY = 7, RK_VOLUME_UP = 8, RK_VOLUME_DOWN = 9, RK_MUTE = 10;
+
+    /**
+     * A ring with four arrows round OK, as every TV remote has it, and Back, Home and Play/Pause and the volume as round
+     * keys: a row of them under the ring, two rows, or a column each side, whichever leaves the largest ring. Only the keys
+     * the remote's integration takes are drawn (`x.keys`, the command of each key); a key sends remote.send_command.
+     */
+    private void drawRemoteKeypad(Canvas c, final Tessera.Tile t, RectF body) {
+        final List<Object> keys = Json.arr(t.extra.get("keys"));
+        List<Integer> lefts = new ArrayList<Integer>(), rights = new ArrayList<Integer>();
+        for (int k : new int[]{RK_BACK, RK_HOME, RK_PLAY}) if (remoteHas(keys, k)) lefts.add(k);
+        for (int k : new int[]{RK_VOLUME_UP, RK_MUTE, RK_VOLUME_DOWN}) if (remoteHas(keys, k)) rights.add(k);
+        float gap = 2 * u, room = body.height(), span = body.width(), most = 80 * mm();
+        float key = Math.max(10 * u, 7 * mm());
+        float[] fit = remoteFit(key, gap, room, span, most);
+        float grown = Math.min(Math.max(key, fit[0] / 5), 14 * mm());
+        if (grown > key) {
+            key = grown;
+            fit = remoteFit(key, gap, room, span, most);
+        }
+        float ring = fit[0];
+        boolean below = fit[1] > 0;
+        int rows = (int) fit[2];
+        // The whole keypad centred in the card's body.
+        float total = below ? ring + (lefts.isEmpty() && rights.isEmpty() ? 0 : gap + key + (rows == 2 && !lefts.isEmpty() && !rights.isEmpty() ? gap + key : 0)) : ring;
+        float x = body.centerX() - ring / 2, y = body.top + Math.max(0, (body.height() - total) / 2);
+        fill.setColor(Style.RAISED);
+        c.drawCircle(x + ring / 2, y + ring / 2, ring / 2, fill);
+        float ok = ring * 2 / 5, third = ring / 3, deep = (ring - ok) / 2;
+        float[][] zones = {{RK_UP, third, 0, third, deep}, {RK_DOWN, third, ring - deep, third, deep},
+                {RK_LEFT, 0, third, deep, third}, {RK_RIGHT, ring - deep, third, deep, third}};
+        String[] arrows = {"F0143", "F0140", "F0141", "F0142"};
+        glyphs.setColor(Style.TEXT);
+        glyphs.setTextSize(Math.min(deep * 0.5f, 9 * u));
+        for (int i = 0; i < 4; i++) {
+            float[] z = zones[i];
+            RectF zr = new RectF(x + z[1], y + z[2], x + z[1] + z[3], y + z[2] + z[4]);
+            if (!remoteHas(keys, (int) z[0])) continue;
+            c.drawText(Icons.glyph(arrows[i]), zr.centerX(), zr.centerY() + glyphs.getTextSize() * 0.36f, glyphs);
+            remoteHit(t, keys, (int) z[0], zr);
+        }
+        RectF centre = new RectF(x + (ring - ok) / 2, y + (ring - ok) / 2, x + (ring + ok) / 2, y + (ring + ok) / 2);
+        fill.setColor(Style.CARD);
+        c.drawOval(centre, fill);
+        text.setTypeface(medium);
+        text.setTextSize(Math.min(ok * 0.2f, 6 * u));
+        text.setColor(Style.TEXT);
+        text.setTextAlign(Paint.Align.CENTER);
+        c.drawText("OK", centre.centerX(), centre.centerY() + text.getTextSize() * 0.36f, text);
+        text.setTextAlign(Paint.Align.LEFT);
+        if (remoteHas(keys, RK_OK)) remoteHit(t, keys, RK_OK, centre);
+        if (below && rows == 1) {
+            List<Integer> all = new ArrayList<Integer>(lefts);
+            all.addAll(rights);
+            remoteRow(c, t, keys, all, body, y + ring + gap, key, gap);
+        } else if (below) {
+            remoteRow(c, t, keys, lefts, body, y + ring + gap, key, gap);
+            remoteRow(c, t, keys, rights, body, y + ring + gap + (lefts.isEmpty() ? 0 : key + gap), key, gap);
+        } else {
+            remoteColumn(c, t, keys, lefts, x - gap - key, y, ring, key, gap);
+            remoteColumn(c, t, keys, rights, x + ring + gap, y, ring, key, gap);
+        }
+    }
+
+    /** {ring, below (1/0), rows} for round keys of `key`: the layout that leaves the largest ring. */
+    private float[] remoteFit(float key, float gap, float room, float span, float most) {
+        int rows = 6 * key + 5 * gap <= span ? 1 : 3 * key + 2 * gap <= span ? 2 : 0;
+        float under = rows > 0 ? Math.min(Math.min(room - rows * (key + gap), span), most) : 0;
+        float beside = Math.min(Math.min(room, span - 2 * (key + gap)), most);
+        boolean below = under >= beside;
+        return new float[]{Math.max(30 * u, below ? under : beside), below ? 1 : 0, rows};
+    }
+
+    private static boolean remoteHas(List<Object> keys, int k) {
+        return keys != null && k < keys.size() && keys.get(k) instanceof String && !((String) keys.get(k)).isEmpty();
+    }
+
+    private void remoteHit(final Tessera.Tile t, final List<Object> keys, final int k, RectF r) {
+        Hit h = new Hit(new RectF(r));
+        h.tap = new Runnable() {
+            public void run() {
+                if (!Style.unavailable(t)) call("remote.send_command", t, "command", (String) keys.get(k));
+            }
+        };
+        hits.add(h);
+    }
+
+    private void remoteKey(Canvas c, Tessera.Tile t, List<Object> keys, int k, float kx, float ky, float key) {
+        String g = k == RK_BACK ? "F17B3" : k == RK_HOME ? "F02DC" : k == RK_PLAY ? "F040E" : k == RK_VOLUME_UP ? "F075D"
+                : k == RK_VOLUME_DOWN ? "F075E" : "F075F";
+        RectF r = new RectF(kx, ky, kx + key, ky + key);
+        fill.setColor(Style.RAISED);
+        c.drawOval(r, fill);
+        glyphs.setColor(Style.TEXT);
+        glyphs.setTextSize(key * 0.42f);
+        c.drawText(Icons.glyph(g), r.centerX(), r.centerY() + key * 0.15f, glyphs);
+        remoteHit(t, keys, k, r);
+    }
+
+    private void remoteRow(Canvas c, Tessera.Tile t, List<Object> keys, List<Integer> list, RectF body, float ky, float key, float gap) {
+        int n = list.size();
+        float step = key + gap, start = body.centerX() - ((n - 1) * step + key) / 2;
+        for (int i = 0; i < n; i++) remoteKey(c, t, keys, list.get(i), start + i * step, ky, key);
+    }
+
+    private void remoteColumn(Canvas c, Tessera.Tile t, List<Object> keys, List<Integer> list, float kx, float y, float ring, float key, float gap) {
+        int n = list.size();
+        float span = n * key + (n - 1) * gap, start = y + (ring - span) / 2;
+        for (int i = 0; i < n; i++) remoteKey(c, t, keys, list.get(i), kx, start + i * (key + gap), key);
     }
 
     // ----- a robot vacuum's card (module_vacuum_card.cpp) -----
@@ -2001,11 +2206,14 @@ public final class TileView extends View {
             buttons.add(new String[]{"Unlock", "lock.unlock"});
         }
         if (d.equals("media_player")) {
-            buttons.add(new String[]{"off".equals(s) || "standby".equals(s) ? "Turn on" : "Turn off",
-                    "off".equals(s) || "standby".equals(s) ? "media_player.turn_on" : "media_player.turn_off"});
-            buttons.add(new String[]{"Previous", "media_player.media_previous_track"});
-            buttons.add(new String[]{"playing".equals(s) ? "Pause" : "Play", "media_player.media_play_pause"});
-            buttons.add(new String[]{"Next", "media_player.media_next_track"});
+            // Only the keys the player has (MediaPlayerEntityFeature), as Home Assistant's dialog: a TV may have none.
+            int f = t.number("supported_features") == null ? 0 : t.number("supported_features").intValue();
+            boolean off = "off".equals(s) || "standby".equals(s);
+            if (f == 0 || (f & (off ? 128 : 256)) != 0)
+                buttons.add(new String[]{off ? "Turn on" : "Turn off", off ? "media_player.turn_on" : "media_player.turn_off"});
+            if (f == 0 || (f & 16) != 0) buttons.add(new String[]{"Previous", "media_player.media_previous_track"});
+            if (f == 0 || (f & (1 | 16384)) != 0) buttons.add(new String[]{"playing".equals(s) ? "Pause" : "Play", "media_player.media_play_pause"});
+            if (f == 0 || (f & 32) != 0) buttons.add(new String[]{"Next", "media_player.media_next_track"});
         }
         if (d.equals("alarm_control_panel")) {
             buttons.add(new String[]{"Disarm", "alarm_control_panel.alarm_disarm"});
@@ -2285,6 +2493,14 @@ public final class TileView extends View {
             glyphs.setColor(playing ? Style.accent(t) : dim);
             glyphs.setTextSize(ic * 0.56f);
             c.drawText(glyph != null ? glyph : Icons.forTile(getContext(), t), icx, icy + ic * 0.2f, glyphs);
+            if (app.screen().screenSettings.iconToggles()) {
+                // Icon toggles: the circle plays or pauses the favourite, the rest of the tile opens the player.
+                float reach = Math.max(ic, 12 * u);
+                Hit q = new Hit(new RectF(icx - reach / 2, icy - reach / 2, icx + reach / 2, icy + reach / 2));
+                q.tap = tapFor(index, t, false);
+                q.hold = tapFor(index, t, true);
+                hits.add(q);
+            }
             text.setTypeface(medium);
             text.setTextSize(fs);
             text.setColor(fg);
@@ -2879,6 +3095,62 @@ public final class TileView extends View {
         } else {
             cardTile = index;
         }
+    }
+
+    /** Whether a tap on this tile can open a card (icon toggles changes only those): not a page, a scene or a button. */
+    private boolean opensCard(Tessera.Tile t) {
+        String d = t.domain(), e = t.entity;
+        if (e.startsWith("screen.") || "none".equals(t.tap) || "action".equals(t.tap)) return false;
+        return !(d.equals("scene") || d.equals("script") || d.equals("button") || d.equals("input_button"));
+    }
+
+    /**
+     * What the icon does with icon toggles on: switch it on or off, play or pause, start or pause, open or close a blind;
+     * null where the icon has nothing quicker than the card (a sensor, a lock, a thermostat), so it opens the card too.
+     */
+    private Runnable quickAction(final int index, final Tessera.Tile t) {
+        final String d = t.domain();
+        if ("favorite".equals(t.display) && d.equals("media_player")) return tapFor(index, t, false);
+        if (d.equals("light") || d.equals("switch") || d.equals("input_boolean") || d.equals("fan") || d.equals("humidifier")
+                || d.equals("siren") || d.equals("remote") || d.equals("automation") && "toggle".equals(t.tap)) {
+            return new Runnable() {
+                public void run() { toggle(t); }
+            };
+        }
+        if (d.equals("automation")) return new Runnable() {
+            public void run() { call("automation.trigger", t); }
+        };
+        if (d.equals("cover")) return new Runnable() {
+            public void run() { call("cover.toggle", t); }
+        };
+        if (d.equals("timer")) return new Runnable() {
+            public void run() { call("active".equals(t.state) ? "timer.pause" : "timer.start", t); }
+        };
+        if (d.equals("vacuum")) {
+            final List<String[]> keys = VacuumCard.tileKeys(t);
+            if (keys.isEmpty()) return null;
+            return new Runnable() {
+                public void run() { call(keys.get(0)[1], t); }
+            };
+        }
+        if (d.equals("media_player")) {
+            // A TV or a receiver (Home Assistant's device class, or a player with power and no play/pause) switches on
+            // and off; a speaker plays and pauses, and turns on when it is off.
+            final int f = t.number("supported_features") == null ? 0 : t.number("supported_features").intValue();
+            String dc = t.text("device_class");
+            boolean power = (f & (128 | 256)) != 0;
+            final boolean tv = "tv".equals(dc) || "receiver".equals(dc)
+                    || dc == null && power && (f & (1 | 16384)) == 0;
+            return new Runnable() {
+                public void run() {
+                    boolean off = "off".equals(t.state) || "standby".equals(t.state);
+                    if (off) call("media_player.turn_on", t);
+                    else if (tv) call("media_player.turn_off", t);
+                    else call("media_player.media_play_pause", t);
+                }
+            };
+        }
+        return null;
     }
 
     private static final java.util.Set<String> CARDS = new java.util.HashSet<String>(java.util.Arrays.asList(

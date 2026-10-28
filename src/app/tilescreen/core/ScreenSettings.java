@@ -38,6 +38,8 @@ public final class ScreenSettings {
             autoHome = 1, autoHomeSeconds = 120, darkMode = 0, pageButtons = 1, homeButton = 1;
     // This app's own, not Tessera's: Android's screen timeout and screensaver instead of Tessera's standby.
     private int androidSaver = 0;
+    /** The app's own too: a tile's icon toggles it and a tap anywhere else opens its card. */
+    private int iconToggles = 0;
 
     private final Store store;
     private final EspDevice.Logger log;
@@ -46,7 +48,7 @@ public final class ScreenSettings {
     public volatile Runnable onSleep;
 
     private final EspDevice.Number eBrightness, eStandbyBrightness, eNightBrightness, eStandbySeconds, eAutoHomeSeconds;
-    private final EspDevice.Switch eStandby, eNight, eDark, eAutoHome, eHomeOnStandby, eSwipe, ePageButtons, eHomeButton, eAndroidSaver;
+    private final EspDevice.Switch eStandby, eNight, eDark, eAutoHome, eHomeOnStandby, eSwipe, ePageButtons, eHomeButton, eAndroidSaver, eIconToggles;
     private final EspDevice.Time eNightStart, eNightEnd;
     private final EspDevice.Select eRotation;
 
@@ -76,6 +78,7 @@ public final class ScreenSettings {
         eHomeButton = toggle(device, "show_home_button", "Show home button", "mdi:home", "home_button");
         // Not one of Tessera's settings (its panel doesn't list it); a name of its own so it never clashes with one.
         eAndroidSaver = toggle(device, "use_android_screensaver", "Use Android screensaver", "mdi:android", "android_saver");
+        eIconToggles = toggle(device, "icon_toggles_tap_opens", "Icon toggles, tap opens controls", "mdi:gesture-tap-button", "icon_toggles");
         eNightStart = time(device, "night_starts", "Night starts", "mdi:weather-sunset-down", "night_start");
         eNightEnd = time(device, "night_ends", "Night ends", "mdi:weather-sunset-up", "night_end");
         // A screen that isn't square turns by half turns only.
@@ -213,7 +216,8 @@ public final class ScreenSettings {
             androidSaver = flag(value);
             if (androidSaver != 0) { dimmed = false; sleepRequested = false; }
             lastTouch = System.currentTimeMillis();
-        } else return false;
+        } else if (key.equals("icon_toggles")) iconToggles = flag(value);
+        else return false;
         return true;
     }
 
@@ -236,6 +240,7 @@ public final class ScreenSettings {
         m.put("page_buttons", (double) pageButtons);
         m.put("home_button", (double) homeButton);
         m.put("android_saver", (double) androidSaver);
+        m.put("icon_toggles", (double) iconToggles);
         return Json.write(m);
     }
 
@@ -253,11 +258,11 @@ public final class ScreenSettings {
     }
 
     private void publish() {
-        int b, sb, nb, ss, ah, st, ne, nst, nen, dk, ahm, hos, sw, pb, hb, rot, as;
+        int b, sb, nb, ss, ah, st, ne, nst, nen, dk, ahm, hos, sw, pb, hb, rot, as, it;
         synchronized (this) {
             b = brightness; sb = standbyBrightness; nb = nightBrightness; ss = standbySeconds; ah = autoHomeSeconds;
             st = standbyEnabled; ne = nightEnabled; nst = nightStart; nen = nightEnd; dk = darkMode; ahm = autoHome;
-            hos = homeOnStandby; sw = swipePages; pb = pageButtons; hb = homeButton; rot = rotation; as = androidSaver;
+            hos = homeOnStandby; sw = swipePages; pb = pageButtons; hb = homeButton; rot = rotation; as = androidSaver; it = iconToggles;
         }
         eBrightness.set(b);
         eStandbyBrightness.set(sb);
@@ -276,6 +281,7 @@ public final class ScreenSettings {
         eNightEnd.set(nen);
         eRotation.set(rot + "°");
         eAndroidSaver.set(as != 0);
+        eIconToggles.set(it != 0);
     }
 
     // ----- what the drawing side reads -----
@@ -299,6 +305,7 @@ public final class ScreenSettings {
         if (key.equals("page_buttons")) return pageButtons;
         if (key.equals("home_button")) return homeButton;
         if (key.equals("android_saver")) return androidSaver;
+        if (key.equals("icon_toggles")) return iconToggles;
         return -1;
     }
 
@@ -318,6 +325,8 @@ public final class ScreenSettings {
 
     /** Whether Android's screen timeout and screensaver stand in for Tessera's standby. */
     public synchronized boolean androidSaver() { return androidSaver != 0; }
+
+    public synchronized boolean iconToggles() { return iconToggles != 0; }
 
     // ----- standby (core.yaml: dim_display, wake_display, the 1 s interval, Wake and Sleep) -----
 

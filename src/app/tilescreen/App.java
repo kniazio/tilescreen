@@ -189,10 +189,36 @@ public final class App extends Application {
         return new Tessera.Shape() {
             public int width() { return width; }
             public int height() { return height; }
-            public int columns() { return height > width ? App.this.rows() : App.this.columns(); }
-            public int rows() { return height > width ? App.this.columns() : App.this.rows(); }
+            public int columns() { return kept(height > width)[0]; }
+            public int rows() { return kept(height > width)[1]; }
+            public int[] kept(boolean upright) {
+                return upright ? new int[]{portraitColumns(), portraitRows()} : new int[]{App.this.columns(), App.this.rows()};
+            }
+            public void choose(boolean upright, int columns, int rows) {
+                SharedPreferences.Editor e = prefs.edit();
+                e.putInt(upright ? "p_columns" : "columns", columns).putInt(upright ? "p_rows" : "rows", rows);
+                // Tessera stood the screen up or laid it down: that way from now on.
+                if (upright != (height > width)) e.putString("orientation", upright ? "portrait" : "landscape");
+                e.commit();
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                    public void run() {
+                        Runnable r = onTurn;
+                        if (r != null) r.run();
+                        Screen s = screen;
+                        if (s != null) s.regrid();
+                    }
+                });
+            }
         };
     }
+
+    /** The activity's: the orientation setting changed (Tessera turned the screen). */
+    public volatile Runnable onTurn;
+
+    /** The grid standing up: Tessera's choice, else the landscape grid turned. */
+    public int portraitColumns() { return Math.max(1, Math.min(8, prefs.getInt("p_columns", rows()))); }
+
+    public int portraitRows() { return Math.max(1, Math.min(8, prefs.getInt("p_rows", columns()))); }
 
     public synchronized Screen screen() {
         if (screen == null) start();

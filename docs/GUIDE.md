@@ -8,7 +8,7 @@ It is built for low-memory tablets such as the 5th-gen Fire 7 running LineageOS.
 view and no Home Assistant app inside it: a small native app draws the tiles itself. It should run
 on Android 5.0 and later.
 
-This guide covers version 0.8.3.
+This guide covers version 0.9.1.
 
 ## 1. Install it on the tablet
 
@@ -61,6 +61,17 @@ layout through restarts.
   reported to Tessera, the encryption key, a log, and a way out to Android's settings.
 - Tessera's alerts (`esphome.<name>_show_alert` and `_show_alert_choice`) and `_show_page` work.
   So does `esphome.screen_alert` when an alert is answered.
+
+## Icon toggles
+
+Tile Screen's own setting **Icon toggles, tap opens controls** (on the settings page under Screen, or the switch of
+that name on the screen's device in Home Assistant) changes how a tile takes a tap:
+
+- **The round icon** does what a tap did: switches a light, switch or fan on and off, turns a TV or receiver on and off, plays or pauses a speaker (or turns
+  it on), opens or closes a blind, starts or pauses a robot or a timer, plays a favourite.
+- **Anywhere else on the tile** opens its card, with the sliders and keys, without a long press.
+
+Scenes, scripts, buttons, page tiles and tiles with an action of their own work as before. Off is Tessera's way.
 
 ## Screen settings, standby and the screensaver
 
@@ -127,7 +138,7 @@ Other limits:
   update for the screen; ignore it, there is no ESP32 to flash, and Tessera stops at "no profile" anyway.
 - The tablet reports itself to Tessera as a `waveshare7b` (a 1024×600 board), so the editor's
   preview fits and Tessera sends it pictures. Change it under settings if you like.
-- The grid defaults to 4×3 in landscape (3×4 in portrait) and is set in the tablet's settings.
+- The grid defaults to 4×3 in landscape (3×4 in portrait). Choose it in Tessera's editor (the screen's Settings → Grid, from 1×1 to 8×8, and Landscape or Portrait), as for an ESP32 screen; the tablet takes it when you save. The tablet's own settings set the landscape grid too.
 - **Deleting the screen from Home Assistant:** the tablet keeps its encryption key. To add it again,
   long-press the title, then **This screen → Tablet settings → Forget encryption key**. The settings also show the key, in case you
   add the screen by hand.

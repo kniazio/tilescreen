@@ -125,6 +125,7 @@ final class SettingsPage {
             out.add(row(TOGGLE, "Swipe between pages", "swipe_pages"));
             out.add(row(TOGGLE, "Page buttons", "page_buttons"));
             out.add(row(TOGGLE, "Show home button", "home_button"));
+            out.add(row(TOGGLE, "Icon toggles, tap opens controls", "icon_toggles"));
             out.add(row(ROTATION, "Rotation", "rotation"));
         } else if (g.equals(ABOUT)) {
             App app = App.get();

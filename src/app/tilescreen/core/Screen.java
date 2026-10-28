@@ -21,7 +21,11 @@ public final class Screen {
         void dismissAlert();
         void openSettings();
         void changed();
+        /** What the glass shows: TILES (Tessera's pages), WIDGETS (the Android page) or ANDROID (the launcher). */
+        void show(String what);
     }
+
+    public static final String TILES = "Tiles", WIDGETS = "Widgets", ANDROID = "Android";
 
     public static final class Settings {
         public String node = "tablet";
@@ -75,6 +79,27 @@ public final class Screen {
         diagnostic("tessera_dashboard_screen_flash", "Screen flash", "other");
         ip = diagnostic("ip_address", "IP address", "");
 
+        // The tablet's next alarm, as the Home Assistant app's next_alarm sensor gives it: the moment, and the app that set it.
+        nextAlarm = new EspDevice.TextSensor("next_alarm", "Next alarm");
+        nextAlarm.icon = "mdi:alarm";
+        nextAlarm.deviceClass = "timestamp";
+        device.add(nextAlarm);
+        nextAlarmApp = diagnostic("next_alarm_app", "Next alarm app", "");
+        nextAlarmApp.icon = "mdi:alarm-check";
+
+        // What the glass shows: Tessera's tiles, the page of Android widgets, or Android's own launcher and apps.
+        showing = new EspDevice.Select("showing", "Showing", new String[]{TILES, WIDGETS, ANDROID});
+        showing.icon = "mdi:monitor-dashboard";
+        showing.onSet = new EspDevice.Select.OnSet() {
+            public void set(String option) {
+                Ui u = ui;
+                if (u != null) u.show(option);
+                else showing.set(showing.get());
+            }
+        };
+        showing.set(TILES);
+        device.add(showing);
+
         screenSettings = new ScreenSettings(device, settingsStore, log, defaults);
         screenSettings.onSleep = new Runnable() {
             public void run() {
@@ -95,6 +120,8 @@ public final class Screen {
                 new int[]{EspDevice.ARG_INT}, false, new EspDevice.Handler() {
             public Object run(Map<String, Object> args) {
                 tessera.showPage(((Integer) args.get("page")));
+                Ui u = ui;
+                if (u != null && !TILES.equals(showing.get())) u.show(TILES);
                 return null;
             }
         }));
@@ -151,6 +178,32 @@ public final class Screen {
                 if (u != null) u.changed();
             }
         });
+    }
+
+    private EspDevice.TextSensor nextAlarm, nextAlarmApp;
+    private final EspDevice.Select showing;
+
+    /** What the glass shows now, for Home Assistant's Showing select. */
+    public void showing(String what) {
+        if (!what.equals(showing.get())) showing.set(what);
+    }
+
+    public String showing() { return showing.get(); }
+
+    /**
+     * The next alarm Android knows of (AlarmManager.getNextAlarmClock): its moment in milliseconds, or 0 for none, and
+     * the package of the app that set it.
+     */
+    public void nextAlarm(long at, String app) {
+        if (at <= 0) {
+            nextAlarm.clear();
+            nextAlarmApp.set("");
+            return;
+        }
+        java.text.SimpleDateFormat iso = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'+00:00'", java.util.Locale.ROOT);
+        iso.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        nextAlarm.set(iso.format(new java.util.Date(at)));
+        nextAlarmApp.set(app == null ? "" : app);
     }
 
     private EspDevice.TextSensor diagnostic(String id, String name, String value) {

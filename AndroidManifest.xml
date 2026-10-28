@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="app.tilescreen"
-    android:versionCode="17"
-    android:versionName="0.7.0">
+    android:versionCode="21"
+    android:versionName="0.8.3">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="22" />
 
@@ -20,6 +20,10 @@
         android:allowBackup="false"
         android:largeHeap="false"
         android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
+
+        <!-- Wide glass (the Echo Show 5 is 2:1): Android 8+ letterboxes an app built for Android 5 beyond 1.86:1 unless it
+             says it can take more. -->
+        <meta-data android:name="android.max_aspect" android:value="2.5" />
 
         <activity
             android:name=".MainActivity"

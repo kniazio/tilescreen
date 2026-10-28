@@ -8,7 +8,7 @@ It is built for low-memory tablets such as the 5th-gen Fire 7 running LineageOS.
 view and no Home Assistant app inside it: a small native app draws the tiles itself. It should run
 on Android 5.0 and later.
 
-This guide covers version 0.7.0.
+This guide covers version 0.8.3.
 
 ## 1. Install it on the tablet
 
@@ -112,7 +112,7 @@ A new screen starts from Tessera's defaults (standby after 10 minutes at 20%, ni
 Drawn: lights (with their colour, white shade and effects page: effect, palette, preset, speed and the like), switches, fans, input booleans, scenes, scripts, buttons, automations, covers
 (open/stop/close, position, tilt), climate (−/+, the big two-row setpoint, the mode bar), humidifiers,
 calendars (every view of the tile, the full screen with Up next, Day, Week and Month, Free or busy, and a room's sign with its booking keys), sensors with the meter display (ring, tape, bar), sensors and binary sensors (their card shows the history of the last hour, day or week, a line for numbers and a timeline for states), numbers and selects, media players (volume and mute, playback keys,
-power and input in the card, its library behind the key at the top right), favourite tiles (a tap plays or pauses what the favourite holds), locks, vacuums, alarm panels, timers, people, the sun, weather, the
+power and input in the card, its library behind the key at the top right), favourite tiles (a tap plays or pauses what the favourite holds), locks, robot vacuums (the keys the robot has on its tile; its card with the map, cleaning by area, routines, and suction and mop), alarm panels, timers, people, the sun, weather, the
 clock tile (dial, analog, flip and digital), the energy card (live power from Home Assistant's Energy settings, moving dots or calm lines; a tap on a circle opens its sensor's history), "go to page" tiles, camera tiles set to **Live picture**, players set to **Album cover**,
 people set to **Map**, a camera full size in its card, pastel tile colors, top bar items, multiple
 pages, hidden detail pages, custom tap actions, alerts, the screensaver (with a player's play and volume keys over its cover), and Tessera's screen settings.
@@ -123,7 +123,7 @@ Other limits:
 
 - Pictures need **Allow the device to perform Home Assistant actions**, since the screen asks for
   them with an event.
-- The tablet reports firmware 0.56.0, the version whose features it draws. Tessera may offer a newer firmware
+- The tablet reports firmware 0.57.0, the version whose features it draws. Tessera may offer a newer firmware
   update for the screen; ignore it, there is no ESP32 to flash, and Tessera stops at "no profile" anyway.
 - The tablet reports itself to Tessera as a `waveshare7b` (a 1024×600 board), so the editor's
   preview fits and Tessera sends it pictures. Change it under settings if you like.
@@ -131,6 +131,43 @@ Other limits:
 - **Deleting the screen from Home Assistant:** the tablet keeps its encryption key. To add it again,
   long-press the title, then **This screen → Tablet settings → Forget encryption key**. The settings also show the key, in case you
   add the screen by hand.
+
+## Robot vacuums
+
+A vacuum tile shows the keys the robot has: Play or Pause, Stop and Dock. A tap opens its card, as on a Tessera screen:
+
+- its state and battery, and its **map** when the robot's integration has one (Roborock, Ecovacs, Neato, Tuya and
+  others), redrawn by Tessera in the screen's colours; while it cleans, the room, how far it is and the area done;
+- **Clean** (or Pause, Resume, Stop) and **Dock**, and **Locate**;
+- **By area**: tap rooms in the order you want them cleaned, then **Clean (2)** cleans just those. This uses Home
+  Assistant's *clean by area* (2026.3 or later) and needs the robot's segments linked to your areas once: in Home
+  Assistant open the vacuum's entity settings and choose **Map vacuum segments to areas**;
+- **Suction & mop** (the fan key at the top): the cleaning mode, the suction and the water, where the robot has them;
+- **Routines**: the robot's own (Roborock's from its app, an Ecovacs station's actions), one tap each.
+
+What the card has no room for gets a key that opens its own page; the round key at the top left goes back.
+
+## The widget page, Android's apps and its launcher
+
+Turn on **Widget page** in the tablet's settings (long-press the title, **This screen → Tablet settings**). A swipe right
+from page 1 (with **Swipe between pages** on) then opens a page of Android widgets on the same grid as the tiles:
+
+- **+ Widget** adds one from the apps on the tablet, such as the Clock app's. The first time, Android asks to let Tile
+  Screen add widgets; on a rooted tablet the app grants itself that once instead. A widget with a setup screen shows it.
+- **Long-press** a widget to make it wider, narrower, taller or shorter, move it first, or remove it.
+- **Apps** opens any app; **Launcher** opens Android's own home screen (Trebuchet, say). Home comes back to Tile Screen.
+- **Tiles**, a swipe left, or Back return to the tiles. **Back to page 1** returns from the widget page too.
+
+Tile Screen stays the tablet's home app, so Home Assistant keeps control. The screen's **Showing** select says what is
+on the glass (Tiles, Widgets or Android, for any other app) and switches it; `show_page` brings the tiles back. When
+another app or an alarm comes to the front, the backlight goes back to Android's brightness, so an alarm at night
+brightness 0 doesn't ring on a dark screen.
+
+## The next alarm
+
+The screen's device in Home Assistant has a **Next alarm** sensor, a timestamp like the Home Assistant app's
+`next_alarm`, from the tablet's alarm clock (any alarm app that sets Android's alarm clock), and a **Next alarm app**
+diagnostic with the app that set it. With no alarm set, it is unknown.
 
 ## If something goes wrong
 

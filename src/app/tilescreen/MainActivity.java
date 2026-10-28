@@ -44,6 +44,7 @@ public final class MainActivity extends Activity implements Screen.Ui, ScreenSet
     private SaverView saver;
     private View dark;
     private App app;
+    private WidgetPage widgets;
     private boolean swallowing;
 
     @Override
@@ -63,8 +64,22 @@ public final class MainActivity extends Activity implements Screen.Ui, ScreenSet
         dark = new View(this);
         dark.setBackgroundColor(0xFF000000);
         dark.setVisibility(View.GONE);
+        widgets = new WidgetPage(this, new WidgetPage.Host() {
+            public void showTiles() { show(Screen.TILES); }
+            public void showWidgets() { if (widgets.getVisibility() != View.VISIBLE) show(Screen.WIDGETS); }
+            public void openLauncher() { show(Screen.ANDROID); }
+            public void startForResult(Intent i, int request) {
+                try {
+                    startActivityForResult(i, request);
+                } catch (Exception e) {
+                    app.log("widgets: couldn't open " + i.getAction() + ": " + e);
+                }
+            }
+        });
+        widgets.setVisibility(View.GONE);
         FrameLayout root = new FrameLayout(this);
         root.addView(view);
+        root.addView(widgets);
         root.addView(saver);
         root.addView(dark);
         setContentView(root);
@@ -80,7 +95,120 @@ public final class MainActivity extends Activity implements Screen.Ui, ScreenSet
         s.setUi(this);
         s.screenSettings.setUi(this);
         view.changed();
+        // Back in front (from the launcher, an app or an alarm): the page it shows, and the backlight as standby wants it.
+        s.showing(widgets.getVisibility() == View.VISIBLE ? Screen.WIDGETS : Screen.TILES);
+        widgets.resumed();
+        if (lastLevel >= 0) {
+            shownLevel = -1;
+            backlight(lastLevel);
+        }
     }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        widgets.start();
+    }
+
+    @Override
+    protected void onStop() {
+        widgets.stop();
+        super.onStop();
+        // Out of sight with the glass on and no screensaver of Android's starting: another app is in front.
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (!isFinishing() && pm.isInteractive() && System.currentTimeMillis() - dreamStarted > 5000) {
+            app.screen().showing(Screen.ANDROID);
+        }
+    }
+
+    private long dreamStarted;
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Another app or an alarm in front: the backlight as Android has it, so an alarm that rings at night brightness
+        // 0 isn't rung on a dark glass. (The window's own brightness leaves with the window; only root's write stays.)
+        if (shownLevel >= 0 && shownLevel < 100) restoreBacklight();
+    }
+
+    private void restoreBacklight() {
+        shownLevel = -1;
+        final int system = android.provider.Settings.System.getInt(getContentResolver(),
+                android.provider.Settings.System.SCREEN_BRIGHTNESS, 128);
+        new Thread(new Runnable() {
+            public void run() {
+                if (!Root.available()) return;
+                Root.writeBacklight(Math.max(1, Math.round(system / 255f * Root.max())));
+                app.log("backlight: another app in front, back to Android's brightness (" + system + "/255)");
+            }
+        }, "backlight").start();
+    }
+
+    @Override
+    protected void onActivityResult(int request, int code, Intent data) {
+        if (!widgets.result(request, code)) super.onActivityResult(request, code, data);
+    }
+
+    // ----- what the glass shows: the tiles, the widget page, or Android's launcher -----
+
+    /** Screen.Ui: the Showing select, show_page, or a key here. */
+    public void show(final String what) {
+        main.post(new Runnable() {
+            public void run() { showNow(what); }
+        });
+    }
+
+    private void showNow(String what) {
+        Screen s = app.screen();
+        if (Screen.ANDROID.equals(what)) {
+            if (openLauncher()) return;
+            what = Screen.WIDGETS;
+        }
+        boolean wantWidgets = Screen.WIDGETS.equals(what);
+        widgets.setVisibility(wantWidgets ? View.VISIBLE : View.GONE);
+        if (!wantWidgets) view.changed();
+        s.showing(wantWidgets ? Screen.WIDGETS : Screen.TILES);
+        // From another app: the screen in front again.
+        Intent front = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(front);
+        } catch (Exception ignored) {
+        }
+        immersive();
+    }
+
+    /** Android's own launcher (Trebuchet or another home app), opened as an app; Home comes back here. */
+    private boolean openLauncher() {
+        android.content.pm.PackageManager pm = getPackageManager();
+        Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+        List<android.content.pm.ResolveInfo> found = pm.queryIntentActivities(home, 0);
+        final java.util.List<android.content.pm.ResolveInfo> others = new java.util.ArrayList<android.content.pm.ResolveInfo>();
+        for (android.content.pm.ResolveInfo r : found) {
+            String pkg = r.activityInfo.packageName;
+            if (!pkg.equals(getPackageName()) && !pkg.equals("com.android.settings") && !pkg.contains("fallbackhome")
+                    && !pkg.equals("com.android.provision")) others.add(r);
+        }
+        if (others.isEmpty()) {
+            app.log("launcher: no other home app on this tablet");
+            return false;
+        }
+        android.content.pm.ResolveInfo r = others.get(0);
+        Intent open = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                .setComponent(new ComponentName(r.activityInfo.packageName, r.activityInfo.name))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(open);
+            app.log("launcher: opened " + r.activityInfo.packageName);
+            app.screen().showing(Screen.ANDROID);
+            return true;
+        } catch (Exception e) {
+            app.log("launcher: couldn't open " + r.activityInfo.packageName + ": " + e);
+            return false;
+        }
+    }
+
+    /** TileView.Host: a swipe right from page 1. */
+    public void openWidgets() { show(Screen.WIDGETS); }
 
     @Override
     protected void onDestroy() {
@@ -98,7 +226,8 @@ public final class MainActivity extends Activity implements Screen.Ui, ScreenSet
 
     @Override
     public void onBackPressed() {
-        // A wall screen has nowhere to go back to.
+        // A wall screen has nowhere to go back to; the widget page goes back to the tiles.
+        if (widgets.getVisibility() == View.VISIBLE) show(Screen.TILES);
     }
 
     /** Every touch restarts standby's time; one on a dimmed screen only wakes it, and nothing under it acts. */
@@ -174,13 +303,18 @@ public final class MainActivity extends Activity implements Screen.Ui, ScreenSet
                 boolean chosen = showSaver && app.screen().tessera.saver() != null;
                 saver.setVisibility(chosen ? View.VISIBLE : View.GONE);
                 dark.setVisibility(dimmed && level == 0 ? View.VISIBLE : View.GONE);
+                lastLevel = level;
                 backlight(level);
                 if (!dimmed) immersive();
             }
         });
     }
 
-    public void goHome() { view.goHome(); }
+    public void goHome() {
+        // Back to page 1 also leaves the widget page.
+        if (widgets.getVisibility() == View.VISIBLE) show(Screen.TILES);
+        view.goHome();
+    }
 
     public void closeCards() { view.closeCards(); }
 
@@ -270,6 +404,7 @@ public final class MainActivity extends Activity implements Screen.Ui, ScreenSet
                 Intent dream = new Intent(Intent.ACTION_MAIN)
                         .setComponent(new ComponentName("com.android.systemui", "com.android.systemui.Somnambulator"))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                dreamStarted = System.currentTimeMillis();
                 try {
                     startActivity(dream);
                     app.log("screensaver: started Android's screensaver");
@@ -313,7 +448,7 @@ public final class MainActivity extends Activity implements Screen.Ui, ScreenSet
         });
     }
 
-    private int shownLevel = -1;
+    private int shownLevel = -1, lastLevel = -1;
 
     /**
      * The backlight at a Tessera level, as the eye sees it (CIE 1976 lightness, as libcountertop's panel does): a
@@ -382,6 +517,17 @@ public final class MainActivity extends Activity implements Screen.Ui, ScreenSet
         boot.setText("Open this screen when the tablet starts");
         boot.setChecked(p.getBoolean("open_on_boot", true));
         box.addView(boot);
+
+        final CheckBox widgetPage = new CheckBox(this);
+        widgetPage.setText("Widget page: swipe right from page 1 for Android widgets, apps and the launcher");
+        widgetPage.setChecked(app.widgetPage());
+        box.addView(widgetPage);
+        android.widget.Button openWidgets = new android.widget.Button(this);
+        openWidgets.setText("Open the widget page");
+        openWidgets.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { show(Screen.WIDGETS); }
+        });
+        box.addView(openWidgets);
 
         TextView note = new TextView(this);
         note.setText("Brightness, standby, night mode, Back to page 1, swiping, page buttons, the home button, dark mode "
@@ -464,6 +610,7 @@ public final class MainActivity extends Activity implements Screen.Ui, ScreenSet
                         e.putString("orientation", ORIENTATIONS[orient.getSelectedItemPosition()]);
                         e.putString("board", BOARDS[board.getSelectedItemPosition()]);
                         e.putBoolean("open_on_boot", boot.isChecked());
+                        e.putBoolean("widget_page", widgetPage.isChecked());
                         e.commit();
                         applyOrientation();
                         if (!oldNode.equals(app.node()) || !oldBoard.equals(app.board()) || !oldName.equals(app.friendly())) {

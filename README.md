@@ -29,13 +29,17 @@ then laid out in one place.
 - Tessera's tiles and cards, drawn the way its firmware draws them:
   - lights (with color and effects), switches, covers, climate, media players (with their library and favorites),
     sensors with history graphs and meters, calendars, weather, the clock tile, the energy flow card, cameras,
-    alerts and more;
+    robot vacuums (map, cleaning by room, routines, suction and mop), alerts and more;
   - the screensaver with Tessera's clock faces;
   - the on-screen settings page.
 - Tessera's screen settings (brightness, standby, night mode and the rest) as ordinary entities in Home Assistant.
 - An optional **Use Android screensaver** mode, which hands sleep over to Android's own Daydream / screen saver.
 - Encrypted connection: Home Assistant sets the ESPHome encryption key automatically when you add the tablet.
 - It runs as the tablet's home screen (kiosk) and starts at boot.
+- An optional **widget page** left of page 1, for Android widgets (a clock with your alarms, say), with keys to
+  Android's apps and its own launcher. Home Assistant can switch between the tiles, the widget page and Android with
+  the screen's **Showing** select.
+- A **Next alarm** sensor in Home Assistant, like the Home Assistant app's, from the tablet's alarm clock.
 
 **Not supported yet:** Tessera plugin tiles. They show their name only.
 
@@ -44,11 +48,11 @@ then laid out in one place.
 | | |
 |---|---|
 | **Android** | 5.0 (API 21) or later. Built for and tested on Android 5–7 era devices. |
-| **Tested on** | Amazon Fire 7 (5th gen, 2015) (ford) running LineageOS 14.1 (Android 7.1,) rooted with Magisk. |
+| **Tested on** | Amazon Fire 7 (5th gen, 2015) running LineageOS, rooted with Magisk. |
 | **Should work on** | Most Android tablets and phones. Landscape is the default; portrait is supported. |
 | **Memory** | Designed for 1 GB of RAM and less. |
 | **Home Assistant** | Any recent version with the ESPHome integration. |
-| **Tessera** | The ESP Screen Manager add-on (screen protocol v2). The tablet reports firmware **0.56.0**, the version whose features it draws. |
+| **Tessera** | The ESP Screen Manager add-on (screen protocol v2). The tablet reports firmware **0.57.0**, the version whose features it draws. |
 | **Root** | Optional (see the next section). |
 
 Tile Screen is not on the Play Store. You sideload the APK.

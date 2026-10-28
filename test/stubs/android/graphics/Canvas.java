@@ -21,6 +21,11 @@ public class Canvas {
     public void drawRect(float l, float t, float r, float b, Paint p) { shape(new Rectangle2D.Float(l, t, r - l, b - t), p); }
     public void drawRoundRect(RectF r, float rx, float ry, Paint p) { shape(new RoundRectangle2D.Float(r.left, r.top, r.width(), r.height(), rx * 2, ry * 2), p); }
     public void drawCircle(float cx, float cy, float rad, Paint p) { shape(new Ellipse2D.Float(cx - rad, cy - rad, rad * 2, rad * 2), p); }
+    public void drawOval(RectF r, Paint p) { shape(new Ellipse2D.Float(r.left, r.top, r.width(), r.height()), p); }
+    public void drawArc(RectF r, float start, float sweep, boolean center, Paint p) {
+        shape(new java.awt.geom.Arc2D.Float(r.left, r.top, r.width(), r.height(), -start, -sweep,
+                center ? java.awt.geom.Arc2D.PIE : java.awt.geom.Arc2D.OPEN), p);
+    }
     public void drawPath(Path path, Paint p) { shape(path.p, p); }
     public void drawBitmap(Bitmap b, Rect src, RectF dst, Paint p) {
         g.drawImage(b.img, Math.round(dst.left), Math.round(dst.top), Math.round(dst.right), Math.round(dst.bottom),

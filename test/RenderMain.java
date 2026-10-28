@@ -25,6 +25,7 @@ public class RenderMain {
             public void dismissAlert() { view[0].dismissAlert(); }
             public void openSettings() { view[0].openSettingsPage(); }
             public void changed() { view[0].changed(); }
+            public void show(String what) { System.out.println("[ui] show " + what); app.screen.showing(what); }
         });
         app.screen.screenSettings.setUi(new ScreenSettings.Ui() {
             public void systemSleep() { System.out.println("[power] android screensaver"); }
@@ -38,6 +39,7 @@ public class RenderMain {
         view[0] = new TileView(new android.content.Context(), new TileView.Host() {
             public void openAppSettings() { System.out.println("[ui] app settings opened"); }
             public void wake() { System.out.println("[ui] wake"); }
+            public void openWidgets() { System.out.println("[ui] widget page opened"); }
         });
         view[0].layout(w, h);
         render(view[0], dir.resolve("00-waiting.png"), w, h);

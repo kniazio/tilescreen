@@ -25,6 +25,7 @@ public class DesktopMain {
         defaults.put("dark_mode", 1); defaults.put("swipe_pages", 1);
         final Screen screen = new Screen(s, shape, store, settingsStore, defaults, new EspDevice.Logger() { public void log(String l) { System.out.println("[log] " + l); } });
         screen.setUi(new Screen.Ui() {
+            public void show(String what) { System.out.println("[ui] show " + what); screen.showing(what); }
             public void alert(Screen.Alert al) { System.out.println("[ui] alert " + al.title + " / " + al.button); screen.alertEnded(al, "ok"); }
             public void dismissAlert() { System.out.println("[ui] dismiss"); }
             public void openSettings() { System.out.println("[ui] open settings"); }
@@ -48,6 +49,7 @@ public class DesktopMain {
             public void looks() { System.out.println("[power] looks changed"); }
         });
         screen.start(Integer.parseInt(a[0]));
+        screen.nextAlarm(1761649200000L, "com.android.deskclock");
         java.util.Map<String,String> txt = new java.util.LinkedHashMap<String,String>();
         txt.put("friendly_name", "Fire Test"); txt.put("version", EspDevice.ESPHOME_VERSION); txt.put("mac", "aabbccddee01");
         txt.put("platform", "android"); txt.put("board", "waveshare7b"); txt.put("network", "wifi");
@@ -57,6 +59,10 @@ public class DesktopMain {
         // A tap from the UI, to check actions reach HA: triggered by a file appearing.
         while (true) {
             Thread.sleep(200);
+            if (Files.exists(Paths.get("/tmp/tilescreen-noalarm"))) {
+                Files.delete(Paths.get("/tmp/tilescreen-noalarm"));
+                screen.nextAlarm(0, null);
+            }
             if (Files.exists(Paths.get("/tmp/tilescreen-tap"))) {
                 Files.delete(Paths.get("/tmp/tilescreen-tap"));
                 java.util.Map<String,String> d = new java.util.LinkedHashMap<String,String>();

@@ -98,6 +98,33 @@ final class Root {
         }
     }
 
+    /** Runs a command as root in a shell of its own and waits for it (at most 10 s); true when it succeeded. */
+    static boolean exec(String command) {
+        if (!available()) return false;
+        try {
+            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", command});
+            p.getOutputStream().close();
+            java.io.InputStream err = p.getErrorStream();
+            long until = System.currentTimeMillis() + 10000;
+            while (System.currentTimeMillis() < until) {
+                try {
+                    int code = p.exitValue();
+                    byte[] b = new byte[512];
+                    int n = err.available() > 0 ? err.read(b) : 0;
+                    App.get().log("root: " + command + " -> " + code + (n > 0 ? " " + new String(b, 0, n, "UTF-8").trim() : ""));
+                    return code == 0;
+                } catch (IllegalThreadStateException running) {
+                    Thread.sleep(100);
+                }
+            }
+            p.destroy();
+            App.get().log("root: " + command + " timed out");
+        } catch (Exception e) {
+            App.get().log("root: " + command + " failed: " + e);
+        }
+        return false;
+    }
+
     /** The backlight's raw level now, if the file can be read. */
     static String readBacklight() {
         String path = backlight();

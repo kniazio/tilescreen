@@ -127,6 +127,8 @@ public final class EspDevice {
     }
 
     public static final class TextSensor extends Entity {
+        /** Home Assistant's sensor device class: "timestamp" makes the value a moment (ISO 8601). */
+        public String deviceClass = "";
         private volatile String value = "";
         private volatile boolean known;
 
@@ -140,12 +142,21 @@ public final class EspDevice {
             publish();
         }
 
+        /** No value: Home Assistant shows the sensor as unknown. */
+        public void clear() {
+            if (!known && value.isEmpty()) return;
+            value = "";
+            known = false;
+            publish();
+        }
+
         public String get() { return value; }
 
         int listType() { return LIST_TEXT_SENSOR; }
 
         Pb.Out describe() {
-            return new Pb.Out().string(1, objectId).key(2, key()).string(3, name).string(5, icon).varint(7, category);
+            return new Pb.Out().string(1, objectId).key(2, key()).string(3, name).string(5, icon).varint(7, category)
+                    .string(8, deviceClass);
         }
 
         int stateType() { return TEXT_SENSOR_STATE; }
@@ -235,6 +246,8 @@ public final class EspDevice {
             value = v;
             publish();
         }
+
+        public String get() { return value; }
 
         int listType() { return LIST_SELECT; }
 

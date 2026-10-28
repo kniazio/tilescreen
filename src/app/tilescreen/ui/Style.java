@@ -15,6 +15,8 @@ final class Style {
         use(true);
     }
 
+    static boolean isDark() { return dark == null || dark; }
+
     static void use(boolean d) {
         if (dark != null && dark == d) return;
         dark = d;
@@ -168,6 +170,10 @@ final class Style {
         if (d.equals("sensor") || d.equals("number") || d.equals("input_number")) {
             String unit = t.text("unit_of_measurement");
             return s + (unit == null || unit.isEmpty() ? "" : (unit.startsWith("°") || unit.equals("%") ? "" : " ") + unit);
+        }
+        if (d.equals("vacuum")) {
+            double b = VacuumCard.battery(t);
+            return VacuumCard.stateWord(s) + (Double.isNaN(b) ? "" : " · " + Math.round(b) + "%");
         }
         if (d.equals("timer")) {
             String r = t.text("remaining");

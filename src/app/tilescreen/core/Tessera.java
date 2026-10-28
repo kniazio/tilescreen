@@ -16,13 +16,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * follows the firmware of github.com/MaxGramser/homeassistant_espscreen.
  */
 public final class Tessera {
-    public static final String FIRMWARE = "0.56.0";
+    public static final String FIRMWARE = "0.57.0";
     static final int PROTOCOL = 2;
     public static final String READY = "Ready for tile configuration";
     static final int MAX_PAGES = 32, MAX_TILES = 1024, BAR_ITEMS = 16, WIRE_ITEMS = 6, MOST_PAYLOAD = 4096;
     static final int REFRESH_DEFAULT = 15, REFRESH_LEAST = 5, REFRESH_MOST = 3600;
     static final String[] FEATURES = {"climate_range", "bar_status", "weather_week", "media_rows", "media_library",
-            "screensaver", "saver_items", "saver_photos", "clock_faces", "saver_keys"};
+            "screensaver", "saver_items", "saver_photos", "clock_faces", "saver_keys",
+            "vacuum_card"};
 
     // ----- the layout -----
 
@@ -727,6 +728,12 @@ public final class Tessera {
         String what = fields.containsKey("tiles") ? fields.get("tiles") : fields.get("entity");
         log.log("pictures: asked Tessera for " + kind + " (" + what + "), request " + view);
         tell("screen_camera", data);
+    }
+
+    /** Whether the add-on's newest answer for a kind said it has no picture to give. */
+    public synchronized boolean answeredEmpty(String kind) {
+        Picture p = pictures.get(kind);
+        return p != null && p.url.isEmpty();
     }
 
     public synchronized Picture picture(String kind) {

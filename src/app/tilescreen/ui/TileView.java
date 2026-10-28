@@ -38,6 +38,8 @@ public final class TileView extends View {
         /** The app's own settings dialog. */
         void openAppSettings();
         void wake();
+        /** The page of Android widgets, left of page 1 (a swipe right from the first page). */
+        void openWidgets();
     }
 
     // ----- what can be touched -----
@@ -1301,8 +1303,13 @@ public final class TileView extends View {
             drawIconButtons(c, t, band, new String[]{"active".equals(t.state) ? "pause" : "play", "stop"},
                     new String[]{"active".equals(t.state) ? "timer.pause" : "timer.start", "timer.cancel"}, pastel);
         } else if (kind.equals("vacuum")) {
-            drawIconButtons(c, t, band, new String[]{"cleaning".equals(t.state) ? "pause" : "play", "home-import-outline"},
-                    new String[]{"cleaning".equals(t.state) ? "vacuum.pause" : "vacuum.start", "vacuum.return_to_base"}, pastel);
+            List<String[]> keys = VacuumCard.tileKeys(t);
+            String[] icons = new String[keys.size()], services = new String[keys.size()];
+            for (int i = 0; i < keys.size(); i++) {
+                icons[i] = keys.get(i)[0];
+                services[i] = keys.get(i)[1];
+            }
+            if (icons.length > 0) drawIconButtons(c, t, band, icons, services, pastel);
         } else if (kind.equals("run")) {
             String service = d.equals("button") || d.equals("input_button") ? d + ".press"
                     : d.equals("automation") ? "automation.trigger" : d + ".turn_on";
@@ -1474,7 +1481,8 @@ public final class TileView extends View {
         };
         hits.add(outside);
         // The library takes nearly the whole glass, as Tessera's page does; every other card a hand's width.
-        boolean wideCard = t.domain().equals("media_player") && cardView.equals("lib") && cardTile == cardViewTile;
+        boolean wideCard = t.domain().equals("media_player") && cardView.equals("lib") && cardTile == cardViewTile
+                || t.domain().equals("vacuum") && VacuumCard.wide(t, w, h);
         float cw = wideCard ? w * 0.96f : Math.min(w * 0.86f, 120 * u), chh = wideCard ? h * 0.94f : h * 0.82f;
         RectF r = new RectF((w - cw) / 2, (h - chh) / 2, (w + cw) / 2, (h + chh) / 2);
         fill.setColor(Style.CARD);
@@ -1490,16 +1498,26 @@ public final class TileView extends View {
         c.drawCircle(r.left + pad + ic / 2, r.top + pad + ic / 2, ic / 2, fill);
         glyphs.setColor(on ? accent : Style.DIM);
         glyphs.setTextSize(ic * 0.56f);
-        c.drawText(Icons.forTile(getContext(), t), r.left + pad + ic / 2, r.top + pad + ic * 0.7f, glyphs);
+        boolean backKey = t.domain().equals("vacuum") && vacuumCard != null && vacuumCard.view != VacuumCard.MAIN && cardTile == cardViewTile;
+        c.drawText(backKey ? Icons.glyph(VacuumCard.ICON_BACK) : Icons.forTile(getContext(), t), r.left + pad + ic / 2, r.top + pad + ic * 0.7f, glyphs);
         float tx = r.left + pad * 1.5f + ic;
+        boolean vacuumView = t.domain().equals("vacuum") && vacuum().view != VacuumCard.MAIN && cardTile == cardViewTile;
         text.setTypeface(medium);
         text.setTextSize(fs * 1.2f);
         text.setColor(Style.TEXT);
-        c.drawText(fit(t.name, r.right - tx - 12 * u), tx, r.top + pad + ic * 0.45f, text);
+        c.drawText(fit(vacuumView ? vacuum().viewTitle() : t.name, r.right - tx - 22 * u), tx, r.top + pad + ic * 0.45f, text);
         text.setTypeface(regular);
         text.setTextSize(fs * 0.9f);
         text.setColor(Style.DIM);
-        c.drawText(fit(Style.stateLine(t), r.right - tx - 12 * u), tx, r.top + pad + ic * 0.9f, text);
+        c.drawText(fit(vacuumView ? t.name : Style.stateLine(t), r.right - tx - 22 * u), tx, r.top + pad + ic * 0.9f, text);
+        if (vacuumView) {
+            // A view of the vacuum card: the round key at the left goes back to the card, as Tessera's back key does.
+            Hit back = new Hit(new RectF(r.left, r.top, tx, r.top + pad * 2 + ic));
+            back.tap = new Runnable() {
+                public void run() { vacuum().back(); }
+            };
+            hits.add(back);
+        }
         glyphs.setColor(Style.DIM);
         glyphs.setTextSize(6 * u);
         c.drawText(Icons.sure(getContext(), "close"), r.right - pad - 3 * u, r.top + pad + 5 * u, glyphs);
@@ -1511,6 +1529,7 @@ public final class TileView extends View {
 
         if (cardTile != cardViewTile) {
             cardViewTile = cardTile;
+            if (vacuumCard != null) vacuumCard.reset();
             cardView = "";
             pickPage = 0;
             historyFor = "";
@@ -1547,6 +1566,23 @@ public final class TileView extends View {
             hits.add(lib);
         }
         RectF body = new RectF(r.left + pad, r.top + pad * 2 + ic, r.right - pad, r.bottom - pad);
+        if (t.domain().equals("vacuum")) {
+            drawVacuum(c, t, body);
+            // The top bar's keys: suction and water at the edge beside the close key, Locate beside it.
+            float kx = r.right - pad - 13 * u;
+            if (vacuum().barHow) {
+                barKey(c, kx, r.top + pad, VacuumCard.ICON_HOW, new Runnable() {
+                    public void run() { vacuum().open(VacuumCard.HOW); }
+                });
+                kx -= 10 * u;
+            }
+            if (vacuum().barLocate) {
+                barKey(c, kx, r.top + pad, VacuumCard.ICON_LOCATE, new Runnable() {
+                    public void run() { call("vacuum.locate", t); }
+                });
+            }
+            return;
+        }
         if (t.domain().equals("light") && !cardView.isEmpty()) {
             drawEffects(c, t, body, fs, accent);
             return;
@@ -1556,6 +1592,71 @@ public final class TileView extends View {
             return;
         }
         drawCardBody(c, t, body, fs, accent);
+    }
+
+    // ----- a robot vacuum's card (module_vacuum_card.cpp) -----
+
+    private VacuumCard vacuumCard;
+    /** The map asked for last, so a new mark or size asks again. */
+    private String vacuumMapWish = "";
+    private boolean vacuumMapMissing;
+
+    private VacuumCard vacuum() {
+        if (vacuumCard == null) vacuumCard = new VacuumCard(getContext(), glyphs);
+        return vacuumCard;
+    }
+
+    private void barKey(Canvas c, float kx, float top, String icon, Runnable run) {
+        glyphs.setColor(Style.DIM);
+        glyphs.setTextSize(6 * u);
+        c.drawText(Icons.glyph(icon), kx, top + 5 * u, glyphs);
+        Hit hit = new Hit(new RectF(kx - 5 * u, top - 4 * u, kx + 5 * u, top + 10 * u));
+        hit.tap = run;
+        hits.add(hit);
+    }
+
+    private void drawVacuum(Canvas c, final Tessera.Tile t, RectF body) {
+        final Tessera tessera = app.screen().tessera;
+        vacuum().draw(c, t, body, u, new VacuumCard.Host() {
+            public void tap(RectF rr, Runnable run) {
+                Hit hit = new Hit(new RectF(rr));
+                hit.tap = run;
+                hits.add(hit);
+            }
+
+            public void call(String service, Map<String, String> data, Map<String, String> templates) {
+                if (!app.screen().perform(service, data, templates)) noActions();
+                invalidate();
+            }
+
+            public Bitmap map(String mapEntity, String mark, final int w, final int h, final int bg, final boolean dark) {
+                final String entity = t.entity;
+                String wish = entity + "|" + mark + "|" + w + "x" + h + "|" + Integer.toHexString(bg & 0xFFFFFF) + "|" + dark;
+                if (pictures.want("vmap", wish)) {
+                    vacuumMapWish = wish;
+                    vacuumMapMissing = false;
+                }
+                Bitmap b = pictures.keepFresh(tessera, "vmap", entity, 3600000L, new Runnable() {
+                    public void run() {
+                        Map<String, String> f = new LinkedHashMap<String, String>();
+                        f.put("entity", entity);
+                        f.put("vmap", w + "x" + h);
+                        f.put("bg", String.format(java.util.Locale.ROOT, "%06X", bg & 0xFFFFFF));
+                        f.put("dark", dark ? "1" : "0");
+                        tessera.askPicture("vmap", f);
+                    }
+                });
+                vacuumMapMissing = b == null && tessera.answeredEmpty("vmap");
+                if (b == null && !vacuumMapMissing) {
+                    ui.postDelayed(new Runnable() {
+                        public void run() { invalidate(); }
+                    }, 120);
+                }
+                return b;
+            }
+
+            public boolean mapMissing() { return vacuumMapMissing; }
+        });
     }
 
     // ----- a light's colour rows and effects page (light_controls.h, effects_page.h) -----
@@ -1905,11 +2006,6 @@ public final class TileView extends View {
             buttons.add(new String[]{"Previous", "media_player.media_previous_track"});
             buttons.add(new String[]{"playing".equals(s) ? "Pause" : "Play", "media_player.media_play_pause"});
             buttons.add(new String[]{"Next", "media_player.media_next_track"});
-        }
-        if (d.equals("vacuum")) {
-            buttons.add(new String[]{"Start", "vacuum.start"});
-            buttons.add(new String[]{"Pause", "vacuum.pause"});
-            buttons.add(new String[]{"Dock", "vacuum.return_to_base"});
         }
         if (d.equals("alarm_control_panel")) {
             buttons.add(new String[]{"Disarm", "alarm_control_panel.alarm_disarm"});
@@ -2855,6 +2951,10 @@ public final class TileView extends View {
         int at = inc.indexOf(page);
         if (at < 0) return;
         int next = at + direction;
+        if (next < 0 && app.widgetPage()) {
+            host.openWidgets();
+            return;
+        }
         if (next < 0 || next >= inc.size()) return;
         go(inc.get(next));
     }

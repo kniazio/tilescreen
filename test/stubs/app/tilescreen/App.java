@@ -10,6 +10,7 @@ public final class App {
     public static void set(App a) { self = a; }
     public Screen screen() { return screen; }
     public void log(String l) { System.out.println("[log] " + l); }
+    public boolean widgetPage() { return true; }
     public String friendly() { return "Kitchen Fire"; }
     public String node() { return "kitchen-fire"; }
     public String ip() { return "192.168.1.42"; }

@@ -154,6 +154,9 @@ public final class App extends Application {
     /** "auto", "landscape" or "portrait". */
     public String orientation() { return prefs.getString("orientation", "landscape"); }
 
+    /** Whether a swipe right from the first page opens the page of Android widgets. */
+    public boolean widgetPage() { return prefs.getBoolean("widget_page", false); }
+
     /**
      * Where a screen starts before Tessera or Home Assistant changes anything: Tessera's defaults, except the dark
      * look and swiping between pages, which this app had from the start; and the brightness 0.3 kept, if any.

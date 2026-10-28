@@ -1,9 +1,13 @@
 package app.tilescreen;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.IBinder;
 import android.os.PowerManager;
 
@@ -31,6 +35,30 @@ public final class ScreenService extends Service {
                 .setOngoing(true)
                 .build();
         startForeground(1, n);
+        // The next alarm, for Home Assistant: now, and again whenever an alarm app changes it.
+        alarms = new BroadcastReceiver() {
+            public void onReceive(Context context, Intent intent) { reportAlarm(); }
+        };
+        IntentFilter f = new IntentFilter(AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED);
+        f.addAction(Intent.ACTION_TIME_CHANGED);
+        f.addAction(Intent.ACTION_TIMEZONE_CHANGED);
+        registerReceiver(alarms, f);
+        reportAlarm();
+    }
+
+    private BroadcastReceiver alarms;
+
+    private void reportAlarm() {
+        try {
+            AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+            AlarmManager.AlarmClockInfo next = am.getNextAlarmClock();
+            String app = null;
+            if (next != null && next.getShowIntent() != null) app = next.getShowIntent().getCreatorPackage();
+            App.get().screen().nextAlarm(next == null ? 0 : next.getTriggerTime(), app);
+            App.get().log("next alarm: " + (next == null ? "none" : new java.util.Date(next.getTriggerTime()) + (app == null ? "" : " (" + app + ")")));
+        } catch (Exception e) {
+            App.get().log("next alarm: couldn't read it: " + e);
+        }
     }
 
     @Override
@@ -38,6 +66,7 @@ public final class ScreenService extends Service {
 
     @Override
     public void onDestroy() {
+        if (alarms != null) unregisterReceiver(alarms);
         if (cpu != null) cpu.release();
         super.onDestroy();
     }

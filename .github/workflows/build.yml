@@ -1,0 +1,30 @@
+name: Budowanie APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Pobranie zrodel
+        uses: actions/checkout@v4
+
+      - name: Instalacja narzedzi
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y aapt apksigner zipalign android-sdk-platform-23 dalvik-exchange openjdk-17-jdk
+
+      - name: Budowanie APK
+        run: sh build.sh
+
+      - name: Udostepnienie APK do pobrania
+        uses: actions/upload-artifact@v4
+        with:
+          name: TileScreen-APK
+          path: build/TileScreen.apk
+          if-no-files-found: error
